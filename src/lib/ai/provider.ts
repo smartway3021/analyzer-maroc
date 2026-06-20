@@ -156,42 +156,45 @@ class QwenProvider implements AIProvider {
 
 class HuggingFaceProvider implements AIProvider {
   private config: AIProviderConfig
-  private maxRetries = 3
 
   constructor(config: AIProviderConfig) {
     this.config = config
   }
 
   async chat(messages: AIMessage[]): Promise<string> {
-    const model = this.config.model || 'mistralai/Mistral-7B-Instruct-v0.3'
+    const model = this.config.model || 'Qwen/Qwen2.5-1.5B-Instruct'
+    const apiKey = this.config.apiKey
+
+    const systemMsg = messages.find((m) => m.role === 'system')?.content || ''
+    const userMsg = messages.find((m) => m.role === 'user')?.content || ''
+    const prompt = `${systemMsg}\n\n${userMsg}`
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 60000)
+    const timeout = setTimeout(() => controller.abort(), 90000)
 
     try {
       const response = await fetch(
-        `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
+        `https://api-inference.huggingface.co/models/${model}`,
         {
           method: 'POST',
           signal: controller.signal,
           headers: {
             'Content-Type': 'application/json',
-            ...(this.config.apiKey
-              ? { Authorization: `Bearer ${this.config.apiKey}` }
-              : {}),
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
           },
           body: JSON.stringify({
-            model,
-            messages,
-            max_tokens: 2000,
-            temperature: 0.1,
+            inputs: prompt,
+            parameters: {
+              max_new_tokens: 2000,
+              temperature: 0.1,
+              return_full_text: false,
+            },
           }),
         }
       )
 
-      if (response.status === 503 && this.maxRetries > 0) {
-        this.maxRetries--
-        await new Promise((r) => setTimeout(r, 3000))
+      if (response.status === 503) {
+        await new Promise((r) => setTimeout(r, 8000))
         return this.chat(messages)
       }
 
@@ -203,7 +206,8 @@ class HuggingFaceProvider implements AIProvider {
       }
 
       const data = await response.json()
-      return data.choices?.[0]?.message?.content || ''
+      const text = Array.isArray(data) ? data[0]?.generated_text : data.generated_text
+      return text || ''
     } finally {
       clearTimeout(timeout)
     }
@@ -214,7 +218,7 @@ class HuggingFaceProvider implements AIProvider {
       { role: 'system', content: SYSTEM_PROMPT },
       {
         role: 'user',
-        content: `Analyse cet appel d'offres marocain et retourne UNIQUEMENT le JSON valide sans aucun texte avant ou après:\n\n${tenderText}`,
+        content: `Analyse cet appel d'offres marocain et retourne UNIQUEMENT le JSON valide:\n\n${tenderText}`,
       },
     ])
 
@@ -342,8 +346,8 @@ export function createAIProvider(config: AIProviderConfig): AIProvider {
 }
 
 export const defaultConfig: AIProviderConfig = {
-  provider: (process.env.AI_PROVIDER as AIProviderConfig['provider']) || 'huggingface',
+  provider: (process.env.AI_PROVIDER as AIProviderConfig['provider']) || 'simulation',
   baseUrl: process.env.OLLAMA_URL || 'http://localhost:11434',
-  model: process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.3',
+  model: process.env.HF_MODEL || 'Qwen/Qwen2.5-1.5B-Instruct',
   apiKey: process.env.HF_API_KEY,
 }
