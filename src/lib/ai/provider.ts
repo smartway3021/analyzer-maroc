@@ -156,6 +156,7 @@ class QwenProvider implements AIProvider {
 
 class HuggingFaceProvider implements AIProvider {
   private config: AIProviderConfig
+  private maxRetries = 3
 
   constructor(config: AIProviderConfig) {
     this.config = config
@@ -163,36 +164,49 @@ class HuggingFaceProvider implements AIProvider {
 
   async chat(messages: AIMessage[]): Promise<string> {
     const model = this.config.model || 'mistralai/Mistral-7B-Instruct-v0.3'
-    const response = await fetch(
-      `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.config.apiKey
-            ? { Authorization: `Bearer ${this.config.apiKey}` }
-            : {}),
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          max_tokens: 2000,
-          temperature: 0.1,
-        }),
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 60000)
+
+    try {
+      const response = await fetch(
+        `https://api-inference.huggingface.co/models/${model}/v1/chat/completions`,
+        {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(this.config.apiKey
+              ? { Authorization: `Bearer ${this.config.apiKey}` }
+              : {}),
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            max_tokens: 2000,
+            temperature: 0.1,
+          }),
+        }
+      )
+
+      if (response.status === 503 && this.maxRetries > 0) {
+        this.maxRetries--
+        await new Promise((r) => setTimeout(r, 3000))
+        return this.chat(messages)
       }
-    )
 
-    if (response.status === 503) {
-      await new Promise((r) => setTimeout(r, 5000))
-      return this.chat(messages)
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw new Error(
+          `HuggingFace (${response.status}): ${text.slice(0, 200) || response.statusText}`
+        )
+      }
+
+      const data = await response.json()
+      return data.choices?.[0]?.message?.content || ''
+    } finally {
+      clearTimeout(timeout)
     }
-
-    if (!response.ok) {
-      throw new Error(`HuggingFace error: ${response.statusText}`)
-    }
-
-    const data = await response.json()
-    return data.choices?.[0]?.message?.content || ''
   }
 
   async analyze(tenderText: string): Promise<AIResponse> {

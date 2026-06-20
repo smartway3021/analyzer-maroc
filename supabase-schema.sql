@@ -1,10 +1,39 @@
--- AI Tender Analyzer Maroc - Database Schema
--- Run this in Supabase SQL Editor
+-- Drop existing policies first
+DROP POLICY IF EXISTS "Users can view own profile" ON users_profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON users_profiles;
+DROP POLICY IF EXISTS "Users can view own company" ON companies;
+DROP POLICY IF EXISTS "Users can insert own company" ON companies;
+DROP POLICY IF EXISTS "Users can update own company" ON companies;
+DROP POLICY IF EXISTS "Users can delete own company" ON companies;
+DROP POLICY IF EXISTS "Users can view own tenders" ON tenders;
+DROP POLICY IF EXISTS "Users can insert own tenders" ON tenders;
+DROP POLICY IF EXISTS "Users can update own tenders" ON tenders;
+DROP POLICY IF EXISTS "Users can delete own tenders" ON tenders;
+DROP POLICY IF EXISTS "Users can view own analysis" ON tender_analysis;
+DROP POLICY IF EXISTS "Users can insert own analysis" ON tender_analysis;
+DROP POLICY IF EXISTS "Users can view own quotes" ON quotes;
+DROP POLICY IF EXISTS "Users can insert own quotes" ON quotes;
+DROP POLICY IF EXISTS "Users can update own quotes" ON quotes;
+DROP POLICY IF EXISTS "Users can delete own quotes" ON quotes;
+DROP POLICY IF EXISTS "Users can view own quote items" ON quote_items;
+DROP POLICY IF EXISTS "Users can insert own quote items" ON quote_items;
+DROP POLICY IF EXISTS "Users can delete own quote items" ON quote_items;
+DROP POLICY IF EXISTS "Users can view own documents" ON documents;
+DROP POLICY IF EXISTS "Users can insert own documents" ON documents;
+DROP POLICY IF EXISTS "Users can update own documents" ON documents;
+DROP POLICY IF EXISTS "Users can delete own documents" ON documents;
+DROP POLICY IF EXISTS "Users can view own subscription" ON subscriptions;
+DROP POLICY IF EXISTS "Authenticated users can view competitors" ON competitors;
+DROP POLICY IF EXISTS "Authenticated users can insert competitors" ON competitors;
+
+-- Drop trigger and function
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user;
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users profiles (extends auth.users)
+-- Users profiles
 CREATE TABLE IF NOT EXISTS users_profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT,
@@ -37,7 +66,7 @@ CREATE TABLE IF NOT EXISTS companies (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tenders (appels d'offres)
+-- Tenders
 CREATE TABLE IF NOT EXISTS tenders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -59,7 +88,7 @@ CREATE TABLE IF NOT EXISTS tenders (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tender analysis results
+-- Tender analysis
 CREATE TABLE IF NOT EXISTS tender_analysis (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tender_id UUID REFERENCES tenders(id) ON DELETE CASCADE,
@@ -93,7 +122,7 @@ CREATE TABLE IF NOT EXISTS tender_analysis (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Quotes (devis)
+-- Quotes
 CREATE TABLE IF NOT EXISTS quotes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tender_id UUID REFERENCES tenders(id) ON DELETE SET NULL,
@@ -134,7 +163,7 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Competitors (veille concurrentielle)
+-- Competitors
 CREATE TABLE IF NOT EXISTS competitors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   company_name TEXT NOT NULL,
@@ -160,7 +189,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable Row Level Security
+-- Enable RLS
 ALTER TABLE users_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenders ENABLE ROW LEVEL SECURITY;
@@ -171,99 +200,32 @@ ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
-
--- Users profiles: users can read/update own profile
-CREATE POLICY "Users can view own profile" ON users_profiles
-  FOR SELECT USING (auth.uid() = id);
-
-CREATE POLICY "Users can update own profile" ON users_profiles
-  FOR UPDATE USING (auth.uid() = id);
-
--- Companies: users can CRUD own company
-CREATE POLICY "Users can view own company" ON companies
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own company" ON companies
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own company" ON companies
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own company" ON companies
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Tenders: users can CRUD own tenders
-CREATE POLICY "Users can view own tenders" ON tenders
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own tenders" ON tenders
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own tenders" ON tenders
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own tenders" ON tenders
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Tender analysis: users can view own analysis
-CREATE POLICY "Users can view own analysis" ON tender_analysis
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own analysis" ON tender_analysis
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
--- Quotes: users can CRUD own quotes
-CREATE POLICY "Users can view own quotes" ON quotes
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own quotes" ON quotes
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own quotes" ON quotes
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own quotes" ON quotes
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Quote items: inherit from quotes
-CREATE POLICY "Users can view own quote items" ON quote_items
-  FOR SELECT USING (
-    EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid())
-  );
-
-CREATE POLICY "Users can insert own quote items" ON quote_items
-  FOR INSERT WITH CHECK (
-    EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid())
-  );
-
-CREATE POLICY "Users can delete own quote items" ON quote_items
-  FOR DELETE USING (
-    EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid())
-  );
-
--- Documents: users can CRUD own documents
-CREATE POLICY "Users can view own documents" ON documents
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own documents" ON documents
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own documents" ON documents
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own documents" ON documents
-  FOR DELETE USING (auth.uid() = user_id);
-
--- Subscriptions: users can view own subscription
-CREATE POLICY "Users can view own subscription" ON subscriptions
-  FOR SELECT USING (auth.uid() = user_id);
-
--- Competitors: public read for all authenticated users
-CREATE POLICY "Authenticated users can view competitors" ON competitors
-  FOR SELECT USING (auth.role() = 'authenticated');
-
-CREATE POLICY "Authenticated users can insert competitors" ON competitors
-  FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "Users can view own profile" ON users_profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON users_profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can view own company" ON companies FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own company" ON companies FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own company" ON companies FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own company" ON companies FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own tenders" ON tenders FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own tenders" ON tenders FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own tenders" ON tenders FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own tenders" ON tenders FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own analysis" ON tender_analysis FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own analysis" ON tender_analysis FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can view own quotes" ON quotes FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own quotes" ON quotes FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own quotes" ON quotes FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own quotes" ON quotes FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own quote items" ON quote_items FOR SELECT USING (EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid()));
+CREATE POLICY "Users can insert own quote items" ON quote_items FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid()));
+CREATE POLICY "Users can delete own quote items" ON quote_items FOR DELETE USING (EXISTS (SELECT 1 FROM quotes WHERE quotes.id = quote_items.quote_id AND quotes.user_id = auth.uid()));
+CREATE POLICY "Users can view own documents" ON documents FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own documents" ON documents FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own documents" ON documents FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own documents" ON documents FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can view own subscription" ON subscriptions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Authenticated users can view competitors" ON competitors FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "Authenticated users can insert competitors" ON competitors FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
 -- Storage buckets
 INSERT INTO storage.buckets (id, name, public) VALUES ('company-logos', 'company-logos', true) ON CONFLICT (id) DO NOTHING;
@@ -276,10 +238,8 @@ RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.users_profiles (id, email, full_name)
   VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
-  
   INSERT INTO public.subscriptions (user_id, plan, analyses_limit)
   VALUES (NEW.id, 'free', 5);
-  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -290,11 +250,11 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
   EXECUTE FUNCTION public.handle_new_user();
 
 -- Indexes
-CREATE INDEX idx_tenders_user_id ON tenders(user_id);
-CREATE INDEX idx_tenders_status ON tenders(status);
-CREATE INDEX idx_tenders_created_at ON tenders(created_at DESC);
-CREATE INDEX idx_tender_analysis_tender_id ON tender_analysis(tender_id);
-CREATE INDEX idx_quotes_user_id ON quotes(user_id);
-CREATE INDEX idx_documents_user_id ON documents(user_id);
-CREATE INDEX idx_competitors_category ON competitors(category);
-CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_tenders_user_id ON tenders(user_id);
+CREATE INDEX IF NOT EXISTS idx_tenders_status ON tenders(status);
+CREATE INDEX IF NOT EXISTS idx_tenders_created_at ON tenders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tender_analysis_tender_id ON tender_analysis(tender_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_user_id ON quotes(user_id);
+CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
+CREATE INDEX IF NOT EXISTS idx_competitors_category ON competitors(category);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);

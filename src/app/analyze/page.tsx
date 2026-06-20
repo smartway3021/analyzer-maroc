@@ -46,7 +46,8 @@ export default function AnalyzePage() {
       setResult(analysis)
       toast.success('Analyse terminée')
     } catch (err) {
-      toast.error('Erreur lors de l\'analyse')
+      const msg = err instanceof Error ? err.message : 'Erreur lors de l\'analyse'
+      toast.error(msg)
     }
     setAnalyzing(false)
   }
@@ -59,7 +60,8 @@ export default function AnalyzePage() {
       setResult(analysis)
       toast.success('Analyse terminée')
     } catch (err) {
-      toast.error('Erreur lors de l\'analyse')
+      const msg = err instanceof Error ? err.message : 'Erreur lors de l\'analyse'
+      toast.error(msg)
     }
     setAnalyzing(false)
   }
