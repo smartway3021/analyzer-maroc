@@ -1,5 +1,5 @@
 export interface AIProviderConfig {
-  provider: 'ollama' | 'llama' | 'mistral' | 'qwen'
+  provider: 'ollama' | 'llama' | 'mistral' | 'qwen' | 'huggingface' | 'simulation'
   baseUrl: string
   model: string
   apiKey?: string
